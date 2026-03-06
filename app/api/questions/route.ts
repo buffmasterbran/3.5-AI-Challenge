@@ -26,16 +26,20 @@ export async function POST(req: NextRequest) {
           role: "system",
           content: `You're helping someone find the perfect gift. Based on basic info about the recipient, generate exactly 5 follow-up questions that dig deeper into WHO this person really is.
 
-These questions should feel like a friend asking "wait, tell me more..." — conversational, specific, and fun. NOT generic. Each question should have 3-4 tappable answer options that feel real and specific.
+These questions should feel like a friend asking "wait, tell me more..." — conversational, specific, and fun. NOT generic. NOT yes/no questions.
+
+Each question needs:
+- 3-4 tappable answer options that are vivid and specific (not generic). These should cover the most likely answers for this type of person.
+- A placeholder hint for a free-text fallback in case none of the options fit.
 
 The questions should help uncover:
-- Their personality quirks and habits
-- What they're obsessed with right now
-- How they spend their free time / guilty pleasures
-- Their aesthetic or style preferences
-- What they'd never buy themselves but secretly want
+- Their personality quirks and daily habits
+- What they're obsessed with or into right now
+- How they actually spend their free time / guilty pleasures
+- Their taste, aesthetic, or style
+- What they'd love but would never buy themselves
 
-Make the answer options vivid and specific — not generic. Instead of "They like reading", try "They've got 3 books going and won't shut up about the one they just finished."
+Make options feel vivid and real. Instead of "They like cooking", try "They've got 3 cookbooks open and a sourdough starter named Gerald."
 
 Respond with this exact JSON structure:
 {
@@ -43,7 +47,8 @@ Respond with this exact JSON structure:
     {
       "id": "q1",
       "question": "The conversational question here?",
-      "options": ["Vivid option A", "Vivid option B", "Vivid option C", "Vivid option D"]
+      "options": ["Vivid option A", "Vivid option B", "Vivid option C"],
+      "placeholder": "e.g. She rewatches The Office every night and eats Hot Cheetos in bed"
     }
   ]
 }`,

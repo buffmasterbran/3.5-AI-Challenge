@@ -19,10 +19,22 @@ interface DeepQuestion {
   id: string;
   question: string;
   options: string[];
+  placeholder: string;
 }
 
 // ——— PHASE 1: Quick-fire tappable questions ———
-const QUICK_QUESTIONS = [
+const QUICK_QUESTIONS: {
+  id: string;
+  emoji: string;
+  question: string;
+  type?: "slider";
+  options?: string[];
+  min?: number;
+  max?: number;
+  step?: number;
+  defaultValue?: number;
+  format?: (v: number) => string;
+}[] = [
   {
     id: "relationship",
     emoji: "👤",
@@ -53,20 +65,36 @@ const QUICK_QUESTIONS = [
     question: "What's the occasion?",
     options: ["Birthday", "Holiday", "Just because", "Thank you", "Anniversary", "New baby", "Graduation"],
   },
+  {
+    id: "budget",
+    emoji: "💸",
+    question: "What's your budget?",
+    type: "slider",
+    min: 10,
+    max: 500,
+    step: 10,
+    defaultValue: 75,
+    format: (v: number) => v >= 500 ? "$500+" : `$${v}`,
+  },
 ];
 
 export default function Home() {
   // Phase tracking
-  const [phase, setPhase] = useState<"landing" | "quick" | "loading-deep" | "deep" | "loading-gifts" | "results">("landing");
+  const [phase, setPhase] = useState<"landing" | "quick" | "freetext" | "loading-deep" | "deep" | "loading-gifts" | "results">("landing");
 
   // Phase 1 state
   const [quickStep, setQuickStep] = useState(0);
   const [quickAnswers, setQuickAnswers] = useState<Record<string, string>>({});
+  const [budgetValue, setBudgetValue] = useState(75);
+
+  // Freetext state
+  const [freetext, setFreetext] = useState("");
 
   // Phase 2 state
   const [deepQuestions, setDeepQuestions] = useState<DeepQuestion[]>([]);
   const [deepStep, setDeepStep] = useState(0);
   const [deepAnswers, setDeepAnswers] = useState<Record<string, string>>({});
+  const [customText, setCustomText] = useState("");
 
   // Results
   const [result, setResult] = useState<GiftResult | null>(null);
@@ -81,9 +109,19 @@ export default function Home() {
     if (quickStep < QUICK_QUESTIONS.length - 1) {
       setQuickStep(quickStep + 1);
     } else {
-      // Phase 1 done → fetch deep questions
-      fetchDeepQuestions(newAnswers);
+      // Phase 1 taps done → go to freetext
+      setPhase("freetext");
     }
+  };
+
+  const handleFreetextSubmit = () => {
+    if (freetext.trim().length < 10) {
+      setError("Give us a little more — what makes them THEM?");
+      return;
+    }
+    setError("");
+    const answersWithFreetext = { ...quickAnswers, uniqueTraits: freetext.trim() };
+    fetchDeepQuestions(answersWithFreetext);
   };
 
   const fetchDeepQuestions = async (answers: Record<string, string>) => {
@@ -103,6 +141,8 @@ export default function Home() {
       }
       setDeepQuestions(data.questions);
       setDeepStep(0);
+      setCustomText("");
+      setDeepAnswers({});
       setPhase("deep");
     } catch {
       setError("Failed to connect. Try again!");
@@ -114,13 +154,18 @@ export default function Home() {
     const q = deepQuestions[deepStep];
     const newAnswers = { ...deepAnswers, [q.id]: answer };
     setDeepAnswers(newAnswers);
+    setCustomText("");
 
     if (deepStep < deepQuestions.length - 1) {
       setDeepStep(deepStep + 1);
     } else {
-      // All done → fetch gifts
       fetchGifts(newAnswers);
     }
+  };
+
+  const handleCustomSubmit = () => {
+    if (!customText.trim()) return;
+    handleDeepAnswer(customText.trim());
   };
 
   const fetchGifts = async (dAnswers: Record<string, string>) => {
@@ -153,9 +198,12 @@ export default function Home() {
     setPhase("landing");
     setQuickStep(0);
     setQuickAnswers({});
+    setBudgetValue(75);
+    setFreetext("");
     setDeepQuestions([]);
     setDeepStep(0);
     setDeepAnswers({});
+    setCustomText("");
     setResult(null);
     setError("");
   };
@@ -219,25 +267,115 @@ export default function Home() {
             <h2 className="text-2xl font-bold">{q.question}</h2>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {q.options.map((option) => (
+          {q.type === "slider" ? (
+            <div className="space-y-6">
+              <div className="text-center">
+                <span className="text-5xl font-bold text-amber-400">
+                  {q.format ? q.format(budgetValue) : `$${budgetValue}`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={q.min}
+                max={q.max}
+                step={q.step}
+                value={budgetValue}
+                onChange={(e) => setBudgetValue(Number(e.target.value))}
+                className="w-full h-2 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-amber-500"
+              />
+              <div className="flex justify-between text-zinc-500 text-xs">
+                <span>${q.min}</span>
+                <span>${q.max}+</span>
+              </div>
               <button
-                key={option}
-                onClick={() => handleQuickAnswer(option)}
-                className={`p-4 rounded-2xl text-left font-medium transition cursor-pointer active:scale-95 border ${
-                  quickAnswers[q.id] === option
-                    ? "bg-amber-500/20 border-amber-500 text-amber-300"
-                    : "bg-zinc-900 border-zinc-800 text-zinc-200 hover:border-zinc-600"
-                }`}
+                onClick={() => handleQuickAnswer(q.format ? q.format(budgetValue) : `$${budgetValue}`)}
+                className="w-full bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold px-8 py-4 rounded-2xl transition text-base cursor-pointer active:scale-95"
               >
-                {option}
+                Next →
               </button>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {q.options?.map((option) => (
+                <button
+                  key={option}
+                  onClick={() => handleQuickAnswer(option)}
+                  className={`p-4 rounded-2xl text-left font-medium transition cursor-pointer active:scale-95 border ${
+                    quickAnswers[q.id] === option
+                      ? "bg-amber-500/20 border-amber-500 text-amber-300"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-200 hover:border-zinc-600"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
 
           {error && (
             <div className="mt-4 text-red-400 text-sm text-center">{error}</div>
           )}
+        </div>
+      </main>
+    );
+  }
+
+  // ——— FREETEXT: Tell us what makes them THEM ———
+  if (phase === "freetext") {
+    return (
+      <main className="min-h-screen flex flex-col px-5 py-6">
+        {/* Progress */}
+        <div className="max-w-sm mx-auto w-full mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <button
+              onClick={() => {
+                setQuickStep(QUICK_QUESTIONS.length - 1);
+                setPhase("quick");
+              }}
+              className="text-zinc-500 hover:text-zinc-300 text-sm transition cursor-pointer"
+            >
+              ← Back
+            </button>
+            <span className="text-zinc-600 text-xs uppercase tracking-wider">The good stuff</span>
+          </div>
+          <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-amber-500 rounded-full transition-all duration-500 ease-out"
+              style={{ width: "50%" }}
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+          <div className="mb-5">
+            <span className="text-4xl mb-3 block">💬</span>
+            <h2 className="text-2xl font-bold mb-2">
+              Now tell us what makes them <span className="text-amber-400">them</span>
+            </h2>
+            <p className="text-zinc-500 text-sm leading-relaxed">
+              Hobbies, obsessions, quirks, inside jokes — the stuff that makes you think of them. Be messy.
+            </p>
+          </div>
+
+          <textarea
+            value={freetext}
+            onChange={(e) => setFreetext(e.target.value)}
+            placeholder={`e.g. "She does ceramics and rides her bike every day" or "He's obsessed with the Cowboys, smokes weed, just had a baby, and is weirdly into spreadsheets..."`}
+            className="w-full h-36 bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-zinc-100 placeholder-zinc-600 resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-base leading-relaxed"
+            autoFocus
+          />
+
+          {error && (
+            <div className="mt-3 text-red-400 text-sm">{error}</div>
+          )}
+
+          <button
+            onClick={handleFreetextSubmit}
+            disabled={freetext.trim().length < 10}
+            className="mt-4 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-950 font-semibold px-8 py-4 rounded-2xl transition text-base cursor-pointer disabled:cursor-not-allowed active:scale-95 w-full"
+          >
+            Next →
+          </button>
         </div>
       </main>
     );
@@ -262,10 +400,11 @@ export default function Home() {
     );
   }
 
-  // ——— PHASE 2: Deep questions (tappable options from AI) ———
+  // ——— PHASE 2: Deep questions (one at a time, tappable + open text fallback) ———
   if (phase === "deep" && deepQuestions.length > 0) {
     const q = deepQuestions[deepStep];
-    const progress = 50 + ((deepStep + 1) / deepQuestions.length) * 50; // 50-100%
+    const isLast = deepStep === deepQuestions.length - 1;
+    const progress = 50 + ((deepStep + 1) / deepQuestions.length) * 50;
 
     return (
       <main className="min-h-screen flex flex-col px-5 py-6">
@@ -274,7 +413,10 @@ export default function Home() {
           <div className="flex items-center justify-between mb-2">
             <button
               onClick={() => {
-                if (deepStep > 0) setDeepStep(deepStep - 1);
+                if (deepStep > 0) {
+                  setDeepStep(deepStep - 1);
+                  setCustomText("");
+                }
               }}
               className="text-zinc-500 hover:text-zinc-300 text-sm transition cursor-pointer"
             >
@@ -292,24 +434,48 @@ export default function Home() {
 
         {/* Question */}
         <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
-          <div className="mb-6">
+          <div className="mb-5">
             <h2 className="text-xl font-bold leading-snug">{q.question}</h2>
           </div>
 
-          <div className="flex flex-col gap-3">
+          {/* Tappable options */}
+          <div className="flex flex-col gap-3 mb-4">
             {q.options.map((option) => (
               <button
                 key={option}
                 onClick={() => handleDeepAnswer(option)}
-                className={`p-4 rounded-2xl text-left font-medium transition cursor-pointer active:scale-95 border ${
-                  deepAnswers[q.id] === option
-                    ? "bg-amber-500/20 border-amber-500 text-amber-300"
-                    : "bg-zinc-900 border-zinc-800 text-zinc-200 hover:border-zinc-600"
-                }`}
+                className="p-4 rounded-2xl text-left font-medium transition cursor-pointer active:scale-95 border bg-zinc-900 border-zinc-800 text-zinc-200 hover:border-zinc-600"
               >
                 {option}
               </button>
             ))}
+          </div>
+
+          {/* Open text fallback */}
+          <div className="border-t border-zinc-800 pt-4">
+            <p className="text-zinc-500 text-xs mb-2 uppercase tracking-wider">None of these? Type your own</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customText}
+                onChange={(e) => setCustomText(e.target.value)}
+                placeholder={q.placeholder}
+                className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && customText.trim()) {
+                    e.preventDefault();
+                    handleCustomSubmit();
+                  }
+                }}
+              />
+              <button
+                onClick={handleCustomSubmit}
+                disabled={!customText.trim()}
+                className="bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-950 font-semibold px-4 py-3 rounded-xl transition cursor-pointer disabled:cursor-not-allowed active:scale-95 text-sm shrink-0"
+              >
+                {isLast ? "🎁" : "→"}
+              </button>
+            </div>
           </div>
 
           {error && (
