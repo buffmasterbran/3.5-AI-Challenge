@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "3.5 AI Challenge",
-  description: "3.5 AI Challenge",
+  title: "Nailed It 🎁 — Gifts They'll Actually Love",
+  description:
+    "Describe someone you love. Get 5 gifts so on-point they'll say 'you get me.'",
 };
 
 export default function RootLayout({
@@ -12,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="bg-zinc-950 text-zinc-100 min-h-screen antialiased">
+        {children}
+      </body>
     </html>
   );
 }
